@@ -4,38 +4,72 @@
 Load Balancing
 ==============
 
-from jordi:
+.. NEW STRUCTURE
 
-> Hm - giving this some more thought. I wonder if the current structure should
-> be changed here slightly as well. I see two points being made here:
-> >
-> Make sure the client isn't the bottle neck (Do concurrent inserts) Make sure
-> a single node isn't the bottle neck (Spread the load)
-> >
-> Maybe we could represent that better in the structure and on each point list
-> the content we have already as options to achieve that?
->
-TODO: I don't think there are currently clients which support dns or aws/azure
-discovery, so I wouldn't mention that.
+.. DOC ON: Make sure the client isn't the bottle neck (Do concurrent inserts)
+.. Make sure a single node isn't the bottle neck (Spread the load)
 
-> should we also cover discovery via dns and aws/azure?
+.. DOC ON: Maybe we could represent that better in the structure and on each
+.. point list the content we have already as options to achieve that?
 
-> https://crate.io/docs/crate/reference/en/latest/configuration/cluster.html#
-discovery-via-dns
+.. .........
 
-> are there any clients or client libraries that can build the node list this
-> way?
+.. should we also cover discovery via dns and aws/azure?
+
+.. I don't think there are currently clients which support dns or
+.. aws/azure discovery, so I wouldn't mention that.
+
+.. https://crate.io/docs/crate/reference/en/latest/configuration/cluster.html#discovery-via-dns
+
+.. are there any clients or client libraries that can build the node list this way?
 
 .. rubric:: Table of Contents
 
 .. contents::
    :local:
 
+Connection Methods
+==================
+
+TODO: consider dropping this whole section and just make it an intro para
+
+consider moving connection pooling to a note somewhere
+
+Connect to a Single Node
+------------------------
+
+Point your client application at a single node in your cluster, and send many
+concurrent requests.
+
+This is the least efficient way to do parallel inserts, because the
+resources on that node can easily become a bottleneck.
+
+Load Balance Connections
+------------------------
+
+TODO
+
+Connection Pooling
+------------------
+
+If your client supports it, connection pooling improves performance by sharing
+network connections between requests.
+
+This is often combined with client round robin. When a node is selected at
+random, any existing connection is reused.
+
+`HikariCP`_ is a connection pool that works with the CrateDB `JDBC client`_.
+
+The `Python client`_ supports round robin and connection pooling.
+
+Load Balancing
+==============
+
 Round Robin
-===========
+-----------
 
 Client Round Robin
-------------------
+..................
 
 Configure your client application with a list of nodes in your cluster, and
 select a random node each time a request is made.
@@ -52,7 +86,7 @@ better than dns bcus it lets you auto failover
 mention connection pooling?
 
 DNS Round Robin
----------------
+...............
 
 When configuring your DNS, you can point the `A record`_ for a domain like
 ``crate.example.com`` at multiple IP addresses. When a client requests the IP
@@ -85,10 +119,10 @@ There are a few problems:
   best use of the cluster.
 
 Proxy Load Balancer
-===================
+-------------------
 
 HTTP Load Balancer
-------------------
+..................
 
 Stick your CrateDB cluster in front of a load balancer.
 
@@ -97,9 +131,11 @@ balancing with something like this in your config:
 
 .. code-block:: text
 
-    backend cratedb-cluster balance roundrobin server cratedb1 192.0.2.1:4200
-    check server cratedb2 192.0.2.2:4200 check server cratedb3 192.0.2.3:4200
-    check
+    backend cratedb-cluster
+    balance roundrobin
+    server cratedb1 192.0.2.1:4200 check
+    server cratedb2 192.0.2.2:4200 check
+    server cratedb3 192.0.2.3:4200 check
 
 With this setup, your client applications would all point directly at the load
 balancer. The load balancer then distributes requests across your cluster.
@@ -126,7 +162,7 @@ just dying shortly after the redirect decision was made. But I'm not sure.
 TODO whole section on DNS published IPs that we do on cloud infra
 
 Wire Protocol Load Balancer
----------------------------
+...........................
 
 todo
 

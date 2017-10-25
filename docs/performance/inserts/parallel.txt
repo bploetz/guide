@@ -18,9 +18,6 @@ The solution to this is to send multiple inserts concurrently. That is, send
 off every insert request as soon as you need to and do not wait for a
 response before sending another insert.
 
-This document introduces you to a number of different approaches for doing
-concurrent inserts.
-
 .. rubric:: Table of Contents
 
 .. contents::
@@ -28,37 +25,45 @@ concurrent inserts.
 
 Example
 =======
-Suppose we have a stream of data we want to persist into CrateDB.
-Parallelising this processing in java is possible using ``CompletableFuture``: 
 
-```
-IntStream.iterate(0, i -> i + 2)
-    .limit(1000)
-    .forEach(i -> {
-        CompletableFuture<Integer> insertFuture =
-            CompletableFuture.supplyAsync(() -> {
-                try {
-                    PreparedStatement stmt =
-                      connection.prepareStatement("insert into t1 values (?)");
-                    stmt.setInt(1, i);
-                    return stmt.executeUpdate();
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
+Suppose we have a stream of data we want to persist into CrateDB.
+Parallelising this processing in Java is possible using a
+`CompletableFuture`_ object, like so:
+
+.. _CompletableFuture: https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html
+
+.. code-block:: java
+
+    IntStream.iterate(0, i -> i + 2)
+        .limit(1000)
+        .forEach(i -> {
+            CompletableFuture<Integer> insertFuture =
+                CompletableFuture.supplyAsync(() -> {
+                    try {
+                        PreparedStatement stmt =
+                          connection.prepareStatement("INSERT INTO my_table VALUES (?)");
+                        stmt.setInt(1, i);
+                        return stmt.executeUpdate();
+                    } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+            insertFuture.whenComplete((Integer result, Throwable failure) -> {
+                if (failure == null) {
+                    // use row count
+                } else {
+                    // handle insert failure
                 }
             });
-
-        insertFuture.whenComplete((Integer result, Throwable failure) -> {
-            if (failure == null) {
-                // use row count
-            } else {
-                // handle insert failure
-            }
         });
-    });
-```
-This way the inserts will be supplied to be executed asynchronously on the 
-``commmonPool`` (you can also provide your own ``Executor`` using the 
-appropriate ``supplyAsync`` signature).
+
+This way, the inserts will be executed asynchronously by the 
+`commmonPool`_ object. You can provide your own ``Executor`` object using the 
+appropriate `supplyAsync`_ signature.
+
+.. _commmonPool: https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html#commonPool--
+.. _supplyAsync: https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html#supplyAsync-java.util.function.Supplier-java.util.concurrent.Executor-
 
 Testing
 =======
@@ -72,8 +77,8 @@ To test parallel inserts, you should:
 2. Run a number of different tests against that setup, using different
    ``--concurrency`` settings
 
-3. Evaluate your throughput results (perhaps by plotting your results on a
-   graph so that you can see the response curve)
+3. Evaluate your throughput results (perhaps by plotting your results on
+   a graph so that you can see the response curve)
 
 Try out different setups and re-run the test.
 

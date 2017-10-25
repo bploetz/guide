@@ -1,26 +1,41 @@
-.. _bulk_inserts:
+.. _insert_methods:
 
-============
-Bulk Inserts
-============
+==============
+Insert Methods
+==============
 
-If ingestion performance is an important metric for you, and you can do your
-inserts in batches, you should switch from single inserts to bulk inserts.
+There are multiple ways to insert data into a CrateDB database.
 
-This document introduces you to a number of different approaches for doing
-bulk inserts.
+Some insert methods can be faster than
+others, depending on your setup. Choosing the best insert method is an easy way to improve insert performance.
 
 .. rubric:: Table of Contents
 
 .. contents::
    :local:
 
-.. _bulk_single_inserts:
+.. _insert_statement_types:
+
+Statement Types
+===============
+
+There are three types of insert statement:
+
+- :ref:`Single inserts <inserts_single_inserts>`
+- :ref:`UNNEST <inserts_unnest>`
+- :ref:`Multiple value expressions <inserts_multiple_values>`
+
+Each type of statement can be issued using any of the three types of
+:ref:`client approaches <inserts_client_approaches>`, which we cover in
+the next section.
+
+.. _inserts_single_inserts:
 
 Single Inserts
-==============
+--------------
 
-`Single inserts`_ use the ``INSERT`` statement, and look like this:
+`Single inserts`_ are the most basic sort of insert statement, and look like
+this:
 
 .. code-block:: psql
 
@@ -48,39 +63,12 @@ In addition, lots of internal traffic will congest your network, which will
 slow down any network-based cluster operations (i.e. inserts, distributed
 reads, replication, and cluster management).
 
-Fortunately, there is a solution: bulk inserts.
-
-.. _bulk_switching:
-
-Switching to Bulk Inserts
-=========================
-
-If you can batch up your inserts, switching to *bulk inserts* will dramatically
-improve both ingestion performance, and overall cluster performance.
-
-Bulk inserts make use of the CrateDB HTTP endpoint `bulk operations`_ feature
-to perform many inserts in a single operation.
-
-Bulk inserts still generate internal network traffic, and CrateDB still waits
-until all replicas have been updated before returning a response. But there is
-less internal network traffic. In addition, the bulk query only needs to be
-parsed, planned, and executed once. And if `translog.durability`_ is set to
-``REQUEST`` (the default), a bulk insert only flushes the disk once.
-
-Alternative Bulk Insert Methods
-===============================
-
-If the HTTP endpoint isn't a viable option for you, there are a few
-alternatives.
-
-.. _bulk_unnest:
+.. _inserts_unnest:
 
 ``UNNEST``
 ----------
 
-CrateDB provides support for bulk inserts via the `UNNEST`_ function.
-
-The ``UNNEST`` function produce rows, like so:
+The `UNNEST`_ function produce rows, like so:
 
 .. code-block:: psql
 
@@ -97,7 +85,7 @@ The ``UNNEST`` function produce rows, like so:
     +------+----------+
     SELECT 3 rows in set  (... sec)
 
-Combine ``UNNEST`` with ``INSERT`` to perform bulk inserts:
+Combine ``UNNEST`` with ``INSERT`` to insert multiple rows at once:
 
 .. code-block:: psql
 
@@ -108,8 +96,16 @@ Combine ``UNNEST`` with ``INSERT`` to perform bulk inserts:
     ...             ['Arthur', 'Trillian', 'Marvin']));
     INSERT OK, 3 rows affected  (... sec)
 
-This method of doing bulk inserts should perform about as well as the HTTP
-endpoint method, and is therefore the recommended alternative.
+You should see a dramatic improvement in performance over single inserts.
+
+Specifically, the advantages are:
+
+- Significantly less internal network traffic
+
+- The query only needs to be parsed, planned, and executed once
+
+- If `translog.durability`_ is set to ``REQUEST`` (the default), an insert
+  using ``UNNEST`` flushes the disk once.
 
 If your client supports query string parameter substitution, you can use the
 ``UNNEST`` method with static prepared statements.
@@ -127,7 +123,7 @@ For example, using the CrateDB Python client, the following is possible:
 Here, you can vary the number of rows being inserted without having to change
 the prepared statement.
 
-.. _bulk_multiple_values:
+.. _inserts_multiple_values:
 
 Multiple Value Expressions
 --------------------------
@@ -154,15 +150,76 @@ Query string parameter substitution is recommended over string concatenation,
 and so the ``UNNEST`` method is recommended over the multiple value expressions
 method.
 
-.. _bulk_client:
+.. _inserts_client_approaches:
 
-Client Feature
---------------
+Client Approaches
+=================
 
-Some clients offer their own bulk inserts implementation.
+There are three client approaches for doing inserts:
 
-`The JDBC client`_, for instance, provides the `addBatch`_ and `executeBatch`_
-methods.
+- :ref:`Standard querying <inserts_standard_querying>`
+- :ref:`Bulk operations <inserts_bulk_operations>`
+- :ref:`Prepared statements <inserts_prepared_statements>`
+
+Each client approach can be used to insert :ref:`any type of insert statement
+<insert_statement_types>`.
+
+.. _inserts_standard_querying:
+
+Standard Querying
+-----------------
+
+The standard way of issuing insert statements executes one statement at a time
+and does not make use of :ref:`inserts_bulk_operations` or any special
+:ref:`inserts_prepared_statements` client feature.
+
+For example, using the CrateDB Python client, here's a :ref:`single insert
+<inserts_single_inserts>`:
+
+.. code-block:: python
+
+   client.execute("INSERT INTO my_table (column_a) VALUES (?)", ["value 1"])
+
+.. _PostgreSQL wire protocol: https://crate.io/docs/crate/reference/en/latest/protocols/postgres.html
+
+.. _inserts_bulk_operations:
+
+Bulk Operations
+---------------
+
+You can use the `bulk operations`_ feature of the CrateDB HTTP endpoint to
+perform many inserts in a single operation.
+
+The advantages are the same as using the :ref:`UNNEST method<inserts_unnest>`:
+
+- Significantly less internal network traffic than executing each insert
+  statement individually
+
+- Even though you're executing multiple insert statements, the bulk query only
+  needs to be parsed, planned, and executed once
+
+- If `translog.durability`_ is set to ``REQUEST`` (the default), a bulk insert
+  only flushes the disk once
+
+Because the advantages are the same as using the ``UNNEST`` method, you
+typically will not see a performance improvement by combining bulk operations
+with ``UNNEST`` statements or statements with :ref:`multiple value expressions
+<inserts_multiple_values>`.
+
+Bulk operations are typically done with :ref:`single insert statements
+<inserts_single_inserts>` as an alternative to the ``UNNEST`` method.
+
+.. _inserts_prepared_statements:
+
+Prepared Statements
+-------------------
+
+Some clients offer a prepared statements feature. Prepared statements are
+parsed by CrateDB and can then be executed any number of times without having
+to re-parse.
+
+This functionality is often presented as batch execution. `The JDBC client`_,
+for instance, provides the `addBatch`_ and `executeBatch`_ methods.
 
 For example:
 
@@ -182,20 +239,24 @@ For example:
 
    int[] results = preparedStatement.executeBatch();
 
-Typically, these implementations still use individual insert statements, but
-they have a lower resource overhead because they use the binary protocol,
-contain almost no headers, and are executed over an already established
-connection.
+In addition to reducing parsing overhead, prepared statement execution requests
+use the binary protocol, contain almost no headers, and are executed over an
+already established connection.
 
-The client batching method usually performs better than manual single inserts,
-but worse than both the ``UNNEST`` method and multiple value expressions method.
+Typically, prepared statements are used :ref:`single insert statements
+<inserts_single_inserts>`.
 
-Testing Bulk Inserts
-====================
+Prepared statements with single inserts will usually perform better than
+:ref:`standard querying <inserts_standard_querying>` with single inserts, but
+worse than standard querying with both the :ref:`UNNEST method<inserts_unnest>`
+and :ref:`multiple value expressions <inserts_multiple_values>`.
+
+Testing
+=======
 
 Follow the instructions in our :ref:`testing_inserts_performance` guide.
 
-To test bulk inserts, you should:
+To test :ref:`bulk operations <inserts_bulk_operations>`, you should:
 
 1. Configure the setup you would like to test
 

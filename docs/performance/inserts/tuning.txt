@@ -185,7 +185,8 @@ You should conduct :ref:`performance testing
 Bulk Size
 .........
 
-:ref:`Bulk inserts <bulk_inserts>` are recommended if you are doing lots of inserts.
+:ref:`Bulk inserts <inserts_bulk_operations>` are recommended if you are doing
+lots of inserts.
 
 How large you can make your bulk insert batches whilst getting the best
 performance out of CrateDB is going to vary on many factors.
