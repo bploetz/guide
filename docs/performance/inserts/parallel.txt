@@ -18,6 +18,12 @@ The solution to this is to send multiple inserts concurrently. That is, send
 off every insert request as soon as you need to and do not wait for a
 response before sending another insert.
 
+.. NOTE::
+
+   Before trying to parallelize your queries, you should evaluate whether
+   :ref:`inserts_bulk_operations` are a good fit. In many cases, you will see
+   even better performance from bulk opperations.
+
 .. rubric:: Table of Contents
 
 .. contents::
@@ -58,8 +64,8 @@ Parallelising this processing in Java is possible using a
             });
         });
 
-This way, the inserts will be executed asynchronously by the 
-`commmonPool`_ object. You can provide your own ``Executor`` object using the 
+This way, the inserts will be executed asynchronously by the
+`commmonPool`_ object. You can provide your own ``Executor`` object using the
 appropriate `supplyAsync`_ signature.
 
 .. _commmonPool: https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html#commonPool--
